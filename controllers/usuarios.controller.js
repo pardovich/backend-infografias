@@ -7,6 +7,9 @@ const registrarUsuario = async (req, res) => {
   try {
     const { nombre, correo, contrasena, rol } = req.body;
 
+    if (!contrasena){
+      return res.status(400).json({ mensaje: 'La contraseña es obligatoria' });
+    }
     const usuarioExistente = await Usuario.findOne({ correo });
     if (usuarioExistente) {
       return res.status(400).json({ mensaje: 'El correo ya está registrado' });
@@ -22,7 +25,12 @@ const registrarUsuario = async (req, res) => {
     });
 
     await nuevoUsuario.save();
-    res.status(201).json({ mensaje: 'Usuario registrado exitosamente' });
+    res.status(201).json({ 
+      id: nuevoUsuario._id.toString(),
+      nombre: nuevoUsuario.nombre,
+      correo: nuevoUsuario.correo,
+      rol: nuevoUsuario.rol,
+      mensaje: 'Usuario registrado exitosamente' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ mensaje: 'Error al registrar usuario' });
@@ -32,8 +40,13 @@ const registrarUsuario = async (req, res) => {
 const obtenerUsuarios = async (req, res) => {
   try {
     const usuarios = await Usuario.find().select('-contrasena'); // Ocultamos contraseñas
-    console.log('usuarios encontrados: ',usuarios);
-    res.json(usuarios);
+    const usuariosConId = usuarios.map(u=> ({
+      id: u._id,
+      nombre: u.nombre,
+      correo: u.correo,
+      rol: u.rol
+    }));  
+    res.json(usuariosConId);
   } catch (error) {
     console.error(error);
     res.status(500).json({ mensaje: 'Error al obtener los usuarios' });
@@ -47,7 +60,14 @@ const obtenerUsuarioPorId = async (req, res) => {
     if (!usuario) {
       return res.status(404).json({ mensaje: 'Usuario no encontrado' });
     }
-    res.json(usuario);
+    res.json(
+      {
+        id: usuario._id,
+        nombre: usuario.nombre,
+        correo: usuario.correo,
+        rol: usuario.rol
+      }
+    );
   } catch (error) {
     console.error(error);
     res.status(500).json({ mensaje: 'Error al obtener el usuario' });
@@ -64,23 +84,33 @@ const actualizarUsuario = async (req, res) => {
       return res.status(404).json({ mensaje: 'Usuario no encontrado' });
     }
 
-    if (correo) {
+    if (correo && correo !== usuario.correo) {
       const usuarioExistente = await Usuario.findOne({ correo });
-      if (usuarioExistente && usuarioExistente._id.toString() !== id) {
+      if (usuarioExistente) {
         return res.status(400).json({ mensaje: 'El correo ya está registrado' });
       }
+      usuario.correo = correo;
     }
+
 
     if (contrasena) {
       usuario.contrasena = await bcrypt.hash(contrasena, 10);
     }
 
     usuario.nombre = nombre || usuario.nombre;
-    usuario.correo = correo || usuario.correo;
     usuario.rol = rol || usuario.rol;
 
     await usuario.save();
-    res.json({ mensaje: 'Usuario actualizado exitosamente' });
+    res.json({ 
+      mensaje: 'Usuario actualizado exitosamente',
+      usuario: {
+        id: usuario._id.toString(),
+        nombre: usuario.nombre,
+        correo: usuario.correo,
+        rol: usuario.rol
+      }
+    
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ mensaje: 'Error al actualizar el usuario' });
@@ -121,7 +151,12 @@ const loginUsuario = async (req, res) => {
       { expiresIn: '2h' }
     );
 
-    res.json({ mensaje: 'Login exitoso', token, nombre: usuario.nombre, rol: usuario.rol });
+    res.json({ 
+      mensaje: 'Login exitoso', 
+      token, 
+      id: usuario._id,
+      nombre: usuario.nombre, 
+      rol: usuario.rol });
   } catch (error) {
     console.error(error);
     res.status(500).json({ mensaje: 'Error en el login' });
